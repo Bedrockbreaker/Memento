@@ -50,6 +50,7 @@ Content/*
 # User-specific files
 .vscode/
 *.code-workspace
+Docs/.obsidian/workspace.json
 
 # Other Repo
 .ignore
