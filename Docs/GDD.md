@@ -125,7 +125,6 @@ UI is to be minimal and abstracted -- it must feel like an extension of the worl
 
 ## 9. Technical Implementation
 
-
 | **System**           | **Implementation**                                                                   |
 | -------------------- | ------------------------------------------------------------------------------------ |
 | Save Graph           | Custom C++ DAG extending Unreal's existing save system, with runtime edge evaluation |
