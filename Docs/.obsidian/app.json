@@ -6,5 +6,13 @@
   "userIgnoreFilters": [
     "Templates/"
   ],
-  "showInlineTitle": false
+  "showInlineTitle": false,
+  "spellcheckDictionary": [
+    "narratively",
+    "mindscape",
+    "Softlocks",
+    "diegetically",
+    "playthroughs",
+    "VSCode"
+  ]
 }
