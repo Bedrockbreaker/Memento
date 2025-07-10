@@ -46,6 +46,7 @@ Content/*
 !Content/Collections/
 !Content/Developers/
 !Content/Memento/
+!Content/MementoEditor/
 
 # User-specific files
 .vscode/
