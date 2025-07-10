@@ -2,7 +2,6 @@
 aliases:
   - GDD
 tags:
-  - TODO
   - design
 ---
 # Memento - GDD
