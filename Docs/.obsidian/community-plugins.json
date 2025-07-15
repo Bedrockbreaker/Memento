@@ -1,5 +1,6 @@
 [
   "obsidian-languagetool-plugin",
   "templater-obsidian",
-  "vault-nickname"
+  "vault-nickname",
+  "obsidian-git"
 ]
