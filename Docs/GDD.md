@@ -8,7 +8,7 @@ tags:
 
 > Narrative-Conscious Persistence Through Reframing Save/Load as a Mechanically Embedded, Systemically Causal, and Progression-Critical Player Action in Decision-Responsive Game Worlds
 
-![Icon][./Icon.png]
+![Icon](Icon.png)
 
 **Platform**: PC (Windows/Linux)
 **Engine**: Unreal Engine 5.6
