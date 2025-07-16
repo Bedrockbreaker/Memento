@@ -2,6 +2,8 @@
 
 A tech and design demo showcasing an implementation of nonlinear saves.
 
+![Icon](./Docs/Icon.png)
+
 ---
 
 All original code and assets authored by Bedrockbreaker in this repository are licensed under the MIT license (see [LICENSE](./LICENSE)).
