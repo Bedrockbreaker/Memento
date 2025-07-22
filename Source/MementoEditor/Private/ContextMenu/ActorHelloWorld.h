@@ -3,7 +3,7 @@
 #pragma once
 
 #include "ActorActionUtility.h"
-#include "Editor/Blutility/Classes/ActorActionUtility.h"
+#include "CoreMinimal.h"
 
 #include "ActorHelloWorld.generated.h"
 

@@ -8,19 +8,17 @@ public class MementoEditor : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
-		PublicDependencyModuleNames.AddRange(new string[] {
+		if (!Target.bBuildEditor) throw new BuildException("MementoEditor can only be built as an editor module.");
+
+		PrivateDependencyModuleNames.AddRange(new string[] {
 			"Core",
 			"CoreUObject",
 			"Engine",
-			"EditorScriptingUtilities"
+
+			"UnrealEd",
+			"Blutility"
 		});
 
-		if (Target.bBuildEditor)
-		{
-			PrivateDependencyModuleNames.AddRange(new string[] {
-				"UnrealEd",
-				"Blutility"
-			});
-		}
+		IWYUSupport = IWYUSupport.Full;
 	}
 }

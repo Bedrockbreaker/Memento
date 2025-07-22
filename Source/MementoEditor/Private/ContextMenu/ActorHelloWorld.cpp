@@ -2,7 +2,7 @@
 
 #include "ActorHelloWorld.h"
 
-#include "Editor/Blutility/Public/EditorUtilityLibrary.h"
+#include "EditorUtilityLibrary.h"
 
 void UMemActorHelloWorld::PrintActorNames() const
 {

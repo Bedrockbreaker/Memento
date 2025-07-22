@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "CoreMinimal.h"
+
 #include "MemPrefixAssetFilter.generated.h"
 
 USTRUCT(BlueprintType)

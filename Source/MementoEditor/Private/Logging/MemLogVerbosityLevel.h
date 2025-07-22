@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "CoreMinimal.h"
+
 #include "MemLogVerbosityLevel.generated.h"
 
 UENUM(BlueprintType)
