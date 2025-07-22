@@ -10,6 +10,10 @@
 			"LoadingPhase": "Default"
 		},
 		{
+			"Name": "MementoDevelopment",
+			"Type": "Runtime"
+		},
+		{
 			"Name": "MementoEditor",
 			"Type": "Editor"
 		}
