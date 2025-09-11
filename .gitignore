@@ -1,0 +1,59 @@
+# Binaries and cache files
+Binaries/*
+Build/*
+!Build/*/
+Build/*/**
+!Build/*/PakBlacklist*.txt
+!Build/**/*.ico
+DerivedDataCache/*
+Intermediate/*
+Plugins/*/Intermediate/*
+Saved/*
+
+# Other
+*.slo
+*.lo
+*.o
+*.obj
+*.gch
+*.pch
+*.so
+*.dylib
+*.mod
+*.lai
+*.la
+*.a
+*.lib
+*.exe
+*.out
+*.app
+*.ipa
+*.xcodeproj
+*.xcworkspace
+*.sln
+*.suo
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.opendb
+*_BuiltData.uasset
+WritePermissions.*.temp
+
+# Marketplace content
+Content/*
+!Content/__ExternalActors__/
+!Content/__ExternalObjects__/
+!Content/Collections/
+!Content/Developers/
+!Content/Memento/
+!Content/MementoEditor/
+
+# User-specific files
+.vscode/
+*.code-workspace
+Docs/.obsidian/workspace.json
+
+# Other Repo
+.ignore
+.diversion/*
+.dvignore

@@ -1,0 +1,30 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "{47DB6E0C-40F1-406F-D400-0397B160E736}",
+	"Category": "",
+	"Description": "",
+	"Modules": [
+		{
+			"Name": "Memento",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "MementoDevelopment",
+			"Type": "Runtime"
+		},
+		{
+			"Name": "MementoEditor",
+			"Type": "Editor"
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "ModelingToolsEditorMode",
+			"Enabled": true,
+			"TargetAllowList": [
+				"Editor"
+			]
+		}
+	]
+}
