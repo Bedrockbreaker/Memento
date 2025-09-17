@@ -1,6 +1,6 @@
 {
 	"FileVersion": 3,
-	"EngineAssociation": "{47DB6E0C-40F1-406F-D400-0397B160E736}",
+	"EngineAssociation": "{89B51698-45FB-DAE7-B20B-6FBD2372D70A}",
 	"Category": "",
 	"Description": "",
 	"Modules": [
@@ -10,21 +10,9 @@
 			"LoadingPhase": "Default"
 		},
 		{
-			"Name": "MementoDevelopment",
+			"Name": "MementoPlayerFramework",
 			"Type": "Runtime"
-		},
-		{
-			"Name": "MementoEditor",
-			"Type": "Editor"
 		}
 	],
-	"Plugins": [
-		{
-			"Name": "ModelingToolsEditorMode",
-			"Enabled": true,
-			"TargetAllowList": [
-				"Editor"
-			]
-		}
-	]
+	"Plugins": []
 }

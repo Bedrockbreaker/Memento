@@ -3,13 +3,14 @@
 #pragma once
 
 #include "GameFramework/GameModeBase.h"
-#include "MementoGameMode.generated.h"
+
+#include "MGameMode.generated.h"
 
 UCLASS(minimalapi)
-class AMementoGameMode : public AGameModeBase
+class AMGameMode : public AGameModeBase
 {
 	GENERATED_BODY()
 
 public:
-	AMementoGameMode();
+	AMGameMode();
 };

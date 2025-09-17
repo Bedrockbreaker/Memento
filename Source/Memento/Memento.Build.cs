@@ -11,9 +11,7 @@ public class Memento : ModuleRules
 		PublicDependencyModuleNames.AddRange(new string[] {
 			"Core",
 			"CoreUObject",
-			"Engine",
-			"InputCore",
-			"EnhancedInput"
+			"Engine"
 		});
 	}
 }

@@ -2,16 +2,20 @@
 
 using UnrealBuildTool;
 
-public class MementoDevelopment : ModuleRules
+public class MementoPlayerFramework : ModuleRules
 {
-	public MementoDevelopment(ReadOnlyTargetRules Target) : base(Target)
+	public MementoPlayerFramework(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
 		PublicDependencyModuleNames.AddRange(new string[] {
 			"Core",
 			"CoreUObject",
-			"Engine"
+			"Engine",
+			"InputCore",
+			"EnhancedInput",
+
+			"Memento"
 		});
 	}
 }
