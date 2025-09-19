@@ -12,6 +12,10 @@
 		{
 			"Name": "MementoPlayerFramework",
 			"Type": "Runtime"
+		},
+		{
+			"Name": "MementoSaveSystem",
+			"Type": "Runtime"
 		}
 	],
 	"Plugins": []
