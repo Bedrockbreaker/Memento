@@ -12,14 +12,13 @@
 
 AMPlayerCharacter::AMPlayerCharacter()
 {
-	// Size appropriate size for first person
+	// Set appropriate size for first person
 	GetCapsuleComponent()->InitCapsuleSize(34.0f, 96.0f);
 
 	// Create and set up the Camera Component
 	FirstPersonCameraComponent = CreateDefaultSubobject<UCameraComponent>(TEXT("First Person Camera"));
-	FirstPersonCameraComponent->SetupAttachment(GetMesh(), FName("head"));
-	FirstPersonCameraComponent->SetRelativeLocationAndRotation(
-		FVector(-2.8f, 5.89f, 0.0f), FRotator(0.0f, 90.0f, -90.0f)); // Some magic numbers, but they work
+	FirstPersonCameraComponent->SetupAttachment(GetCapsuleComponent());
+	FirstPersonCameraComponent->SetRelativeLocation(FVector(2.8f, 0.0f, 70.0f)); // Some magic numbers, but they work
 	FirstPersonCameraComponent->bUsePawnControlRotation = true;
 	FirstPersonCameraComponent->bEnableFirstPersonFieldOfView = true;
 	FirstPersonCameraComponent->bEnableFirstPersonScale = true;
