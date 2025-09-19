@@ -6,7 +6,7 @@
 
 #include "MGameMode.generated.h"
 
-UCLASS(minimalapi)
+UCLASS(MinimalAPI)
 class AMGameMode : public AGameModeBase
 {
 	GENERATED_BODY()
