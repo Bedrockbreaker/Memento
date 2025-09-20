@@ -36,6 +36,6 @@ public:
 
 private:
 	/** The internal guid */
-	UPROPERTY(EditAnywhere, meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(EditAnywhere, meta = (AllowPrivateAccess = true))
 	FGuid Guid;
 };
