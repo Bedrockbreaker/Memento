@@ -17,8 +17,10 @@
 #include "SaveSystem/IMSaveable.h"
 #include "SaveSystem/MSaveData.h"
 #include "SaveSystem/MSaveGame.h"
+#include "SaveSystem/MSaveIndex.h"
 #include "SaveSystem/MSaveNode.h"
 #include "SaveSystem/MSaveNodeMetadata.h"
+#include "SaveSystem/MSlotId.h"
 #include "Serialization/Archive.h"
 #include "Serialization/MemoryReader.h"
 #include "Serialization/MemoryWriter.h"
@@ -203,6 +205,14 @@ UMSaveGame* UMSaveManager::CreateSaveSlot(const FString& SlotName, const int32 U
 	SaveGame->UserIndex = UserIndex;
 
 	bool bSuccess = UGameplayStatics::SaveGameToSlot(SaveGame, SlotName, UserIndex);
+
+	if (bSuccess && SaveIndex)
+	{
+		SaveIndex->SaveSlots.Add({ SlotName, UserIndex });
+		bSuccess = bSuccess && UGameplayStatics::SaveGameToSlot(SaveIndex, TEXT("SaveIndex"), 0);
+		// TODO: Index updated event
+	}
+
 	if (bSuccess)
 	{
 		ActiveSaveGame = SaveGame;
@@ -219,24 +229,40 @@ UMSaveGame* UMSaveManager::CreateSaveSlot(const FString& SlotName, const int32 U
 void UMSaveManager::AsyncCreateSaveSlot(
 	FMAsyncCreateSlotDelegate Delegate, const FString& SlotName, const int32 UserIndex)
 {
-	FMAsyncDeleteSlotDelegate NativeDelegate;
-	NativeDelegate.BindLambda(
+	FMAsyncDeleteSlotDelegate NativeDelegate = FMAsyncDeleteSlotDelegate::CreateLambda(
 		[Delegate, this](const FString& InSlotName, const int32 InUserIndex, bool bSuccess) -> void {
 			UMSaveGame* SaveGame = Cast<UMSaveGame>(UGameplayStatics::CreateSaveGameObject(UMSaveGame::StaticClass()));
 			SaveGame->SlotName = InSlotName;
 			SaveGame->UserIndex = InUserIndex;
 
-			FAsyncSaveGameToSlotDelegate SaveDelegate;
-			SaveDelegate.BindLambda(
+			FAsyncSaveGameToSlotDelegate SaveDelegate = FAsyncSaveGameToSlotDelegate::CreateLambda(
 				[Delegate, SaveGame, this](const FString& SlotName, const int32 UserIndex, bool bSuccess) -> void {
-					if (bSuccess)
-					{
-						ActiveSaveGame = SaveGame;
-						OnSaveSlotUpdated.Broadcast(ActiveSaveGame);
-					}
+					FAsyncSaveGameToSlotDelegate SaveIndexDelegate = FAsyncSaveGameToSlotDelegate::CreateLambda(
+						[Delegate, SaveGame, this](
+							const FString& SlotName, const int32 UserIndex, bool bSuccess) -> void {
+							// TODO: Index updated event
+							if (bSuccess)
+							{
+								ActiveSaveGame = SaveGame;
+								OnSaveSlotUpdated.Broadcast(ActiveSaveGame);
+							}
 
-					Delegate.ExecuteIfBound(SlotName, UserIndex, bSuccess ? SaveGame : nullptr);
+							Delegate.ExecuteIfBound(SlotName, UserIndex, bSuccess ? SaveGame : nullptr);
+						});
+
+					if (bSuccess && SaveIndex)
+					{
+						SaveIndex->SaveSlots.Add({ SlotName, UserIndex });
+						UGameplayStatics::AsyncSaveGameToSlot(
+							SaveIndex, TEXT("SaveIndex"), 0, MoveTemp(SaveIndexDelegate));
+					}
+					else
+					{
+						SaveIndexDelegate.Execute(SlotName, UserIndex, bSuccess);
+					}
 				});
+
+			UGameplayStatics::AsyncSaveGameToSlot(SaveGame, InSlotName, InUserIndex, MoveTemp(SaveDelegate));
 		});
 
 	UE_LOG(LogMSaveManager, Log, TEXT("Creating save slot - %s:%d"), *SlotName, UserIndex);
@@ -376,6 +402,11 @@ bool UMSaveManager::DeleteSaveSlot(const FString& SlotName, const int32 UserInde
 		OnSaveSlotUpdated.Broadcast(ActiveSaveGame);
 	}
 
+	SaveIndex->SaveSlots.Remove({ SlotName, UserIndex });
+	UGameplayStatics::SaveGameToSlot(SaveIndex, TEXT("SaveIndex"), 0);
+
+	// TODO: Index updated event
+
 	return UGameplayStatics::DeleteGameInSlot(SlotName, UserIndex);
 }
 
@@ -402,8 +433,16 @@ void UMSaveManager::AsyncDeleteSaveSlot(
 				OnSaveSlotUpdated.Broadcast(ActiveSaveGame);
 			}
 
-			bool bSuccess = UGameplayStatics::DeleteGameInSlot(InSlotName, InUserIndex);
-			Delegate.ExecuteIfBound(InSlotName, InUserIndex, bSuccess);
+			SaveIndex->SaveSlots.Remove({ InSlotName, InUserIndex });
+			FAsyncSaveGameToSlotDelegate SaveIndexDelegate = FAsyncSaveGameToSlotDelegate::CreateLambda(
+				[Delegate, InSlotName, InUserIndex, this](
+					const FString& SlotName, const int32 UserIndex, bool bSuccess) -> void {
+					// TODO: Index updated event
+					bSuccess = bSuccess && UGameplayStatics::DeleteGameInSlot(InSlotName, InUserIndex);
+					Delegate.ExecuteIfBound(InSlotName, InUserIndex, bSuccess);
+				});
+
+			UGameplayStatics::AsyncSaveGameToSlot(SaveIndex, TEXT("SaveIndex"), 0, MoveTemp(SaveIndexDelegate));
 		});
 
 	AsyncLoadSaveSlot(MoveTemp(LoadDelegate), SlotName, UserIndex, false);
@@ -423,9 +462,45 @@ void UMSaveManager::AsyncDeleteSaveSlotDynamic(
 	AsyncDeleteSaveSlot(MoveTemp(NativeDelegate), SlotName, UserIndex);
 }
 
+TArray<FMSlotId> UMSaveManager::GetSaveIndex() const
+{
+	return SaveIndex ? SaveIndex->SaveSlots : TArray<FMSlotId>();
+}
+
 void UMSaveManager::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
+
+	if (!UGameplayStatics::DoesSaveGameExist(TEXT("SaveIndex"), 0))
+	{
+		UMSaveIndex* Index = Cast<UMSaveIndex>(UGameplayStatics::CreateSaveGameObject(UMSaveIndex::StaticClass()));
+		FAsyncSaveGameToSlotDelegate Delegate = FAsyncSaveGameToSlotDelegate::CreateLambda(
+			[Index, this](const FString& SlotName, int32 UserIndex, bool bSuccess) -> void {
+				if (bSuccess)
+					SaveIndex = Index;
+				else
+					UE_LOG(LogMSaveManager, Warning, TEXT("Failed to create SaveIndex"));
+			});
+		UGameplayStatics::AsyncSaveGameToSlot(Index, TEXT("SaveIndex"), 0, MoveTemp(Delegate));
+	}
+	else
+	{
+		FAsyncLoadGameFromSlotDelegate Delegate = FAsyncLoadGameFromSlotDelegate::CreateLambda(
+			[this](const FString& SlotName, int32 UserIndex, USaveGame* SaveGame) -> void {
+				UMSaveIndex* Index = Cast<UMSaveIndex>(SaveGame);
+				if (Index)
+				{
+					SaveIndex = Index;
+					RefreshConsoleCommands();
+				}
+				else
+				{
+					UE_LOG(LogMSaveManager, Warning, TEXT("Failed to load SaveIndex"));
+				}
+			});
+
+		UGameplayStatics::AsyncLoadGameFromSlot(TEXT("SaveIndex"), 0, MoveTemp(Delegate));
+	}
 
 	// #if UE_WITH_CHEAT_MANAGER
 
@@ -444,37 +519,37 @@ void UMSaveManager::Initialize(FSubsystemCollectionBase& Collection)
 	Manager.RegisterConsoleCommand(
 		TEXT("MSaveManager.Save"),
 		TEXT("Save the game into the active save slot"),
-		FConsoleCommandDelegate::CreateUObject(this, &UMSaveManager::ConsoleSave),
+		FConsoleCommandDelegate::CreateUObject(this, &UMSaveManager::ConsoleSaveGame),
 		ECVF_Cheat);
 
 	Manager.RegisterConsoleCommand(
 		TEXT("MSaveManager.Load"),
 		TEXT("Load a save node by GUID"),
-		FConsoleCommandWithArgsDelegate::CreateUObject(this, &UMSaveManager::ConsoleLoad),
+		FConsoleCommandWithArgsDelegate::CreateUObject(this, &UMSaveManager::ConsoleLoadGame),
 		ECVF_Cheat);
 
 	Manager.RegisterConsoleCommand(
 		TEXT("MSaveManager.LoadRaw"),
 		TEXT("Load a save node by GUID without creating a new invisible node"),
-		FConsoleCommandWithArgsDelegate::CreateUObject(this, &UMSaveManager::ConsoleLoadRaw),
+		FConsoleCommandWithArgsDelegate::CreateUObject(this, &UMSaveManager::ConsoleLoadGameRaw),
 		ECVF_Cheat);
 
 	Manager.RegisterConsoleCommand(
-		TEXT("MSaveManager.SaveSlot"),
-		TEXT("Save the game into a specific save slot"),
-		FConsoleCommandWithArgsDelegate::CreateUObject(this, &UMSaveManager::ConsoleSaveSlot),
+		TEXT("MSaveManager.CreateSlot"),
+		TEXT("Create a new save slot"),
+		FConsoleCommandWithArgsDelegate::CreateUObject(this, &UMSaveManager::ConsoleCreateSaveSlot),
 		ECVF_Cheat);
 
 	Manager.RegisterConsoleCommand(
 		TEXT("MSaveManager.LoadSlot"),
 		TEXT("Load a save slot by name and user index"),
-		FConsoleCommandWithArgsDelegate::CreateUObject(this, &UMSaveManager::ConsoleLoadSlot),
+		FConsoleCommandWithArgsDelegate::CreateUObject(this, &UMSaveManager::ConsoleLoadSaveSlot),
 		ECVF_Cheat);
 
 	Manager.RegisterConsoleCommand(
 		TEXT("MSaveManager.DeleteSlot"),
 		TEXT("Delete a save slot by name and user index"),
-		FConsoleCommandWithArgsDelegate::CreateUObject(this, &UMSaveManager::ConsoleDeleteSlot),
+		FConsoleCommandWithArgsDelegate::CreateUObject(this, &UMSaveManager::ConsoleDeleteSaveSlot),
 		ECVF_Cheat);
 
 	// #endif
@@ -495,7 +570,7 @@ void UMSaveManager::Deinitialize()
 	Manager.UnregisterConsoleObject(TEXT("MSaveManager.Save"));
 	Manager.UnregisterConsoleObject(TEXT("MSaveManager.Load"));
 	Manager.UnregisterConsoleObject(TEXT("MSaveManager.LoadRaw"));
-	Manager.UnregisterConsoleObject(TEXT("MSaveManager.SaveSlot"));
+	Manager.UnregisterConsoleObject(TEXT("MSaveManager.CreateSlot"));
 	Manager.UnregisterConsoleObject(TEXT("MSaveManager.LoadSlot"));
 	Manager.UnregisterConsoleObject(TEXT("MSaveManager.DeleteSlot"));
 	// #endif
@@ -654,12 +729,12 @@ void UMSaveManager::HandleKeyDown(const FKeyEvent& Event)
 	if (Event.GetKey() == EKeys::NumPadOne)
 	{
 		// Load the active node's SequenceParent
-		ConsoleLoadRaw({ ActiveSaveGame->SaveNodes[ActiveSaveGame->MostRecentNodeId].SequenceParentId.ToString() });
+		ConsoleLoadGameRaw({ ActiveSaveGame->SaveNodes[ActiveSaveGame->MostRecentNodeId].SequenceParentId.ToString() });
 	}
 	else if (Event.GetKey() == EKeys::NumPadTwo)
 	{
 		// Load the active node
-		ConsoleLoadRaw({ ActiveSaveGame->MostRecentNodeId.ToString() });
+		ConsoleLoadGameRaw({ ActiveSaveGame->MostRecentNodeId.ToString() });
 	}
 	else if (Event.GetKey() == EKeys::NumPadThree)
 	{
@@ -669,7 +744,7 @@ void UMSaveManager::HandleKeyDown(const FKeyEvent& Event)
 		{
 			if (SaveNode.Value.SequenceParentId == ActiveSaveGame->MostRecentNodeId)
 			{
-				ConsoleLoadRaw({ SaveNode.Key.ToString() });
+				ConsoleLoadGameRaw({ SaveNode.Key.ToString() });
 				bFound = true;
 				break;
 			}
@@ -680,7 +755,7 @@ void UMSaveManager::HandleKeyDown(const FKeyEvent& Event)
 	else if (Event.GetKey() == EKeys::NumPadFive)
 	{
 		// Save the game
-		ConsoleSave();
+		ConsoleSaveGame();
 	}
 }
 
@@ -701,10 +776,39 @@ void UMSaveManager::RefreshConsoleCommands()
 void UMSaveManager::HandleRegisterConsoleAutoCompleteEntries(TArray<FAutoCompleteCommand>& AutoCompleteEntries)
 {
 	// #if UE_WITH_CHEAT_MANAGER
-	if (!ActiveSaveGame) return;
-
 	FColor TextColor = GetDefault<UConsoleSettings>()->AutoCompleteCommandColor;
 
+	// Generate autocompletion for save slots
+	for (const FMSlotId& SlotId : GetSaveIndex())
+	{
+		FString FullCmd = FString::Printf(TEXT("MSaveManager.LoadSlot %s %d"), *SlotId.SlotName, SlotId.UserIndex);
+		FString FullCmdDelete =
+			FString::Printf(TEXT("MSaveManager.DeleteSlot %s %d"), *SlotId.SlotName, SlotId.UserIndex);
+
+		int32 FoundIndex = INDEX_NONE;
+		for (int32 i = 0; i < AutoCompleteEntries.Num(); ++i)
+		{
+			if (AutoCompleteEntries[i].Command == FullCmd)
+			{
+				FoundIndex = i;
+				break;
+			}
+		}
+
+		int32 NewIndex = FoundIndex == INDEX_NONE ? AutoCompleteEntries.AddDefaulted(2) : FoundIndex;
+
+		// MSaveManager.LoadSlot <SlotName> <UserIndex>
+		AutoCompleteEntries[NewIndex].Command = FullCmd;
+		AutoCompleteEntries[NewIndex].Color = TextColor;
+
+		// MSaveManager.DeleteSlot <SlotName> <UserIndex>
+		AutoCompleteEntries[NewIndex + 1].Command = FullCmdDelete;
+		AutoCompleteEntries[NewIndex + 1].Color = TextColor;
+	}
+
+	if (!ActiveSaveGame) return;
+
+	// Generate autocompletion for loading save nodes
 	for (const TTuple<FGuid, FMSaveNodeMetadata>& Tuple : ActiveSaveGame->SaveNodes)
 	{
 		FString SaveId = Tuple.Key.ToString();
@@ -723,12 +827,12 @@ void UMSaveManager::HandleRegisterConsoleAutoCompleteEntries(TArray<FAutoComplet
 
 		int32 NewIndex = FoundIndex == INDEX_NONE ? AutoCompleteEntries.AddDefaulted(2) : FoundIndex;
 
-		// MSaveSystem.Load 00000000-0000-0000-0000-000000000000
+		// MSaveSystem.Load <SaveId>
 		AutoCompleteEntries[NewIndex].Command = FullCmd;
 		AutoCompleteEntries[NewIndex].Desc = Tuple.Value.Timestamp.ToString();
 		AutoCompleteEntries[NewIndex].Color = TextColor;
 
-		// MSaveSystem.LoadRaw 00000000-0000-0000-0000-000000000000
+		// MSaveSystem.LoadRaw <SaveId>
 		AutoCompleteEntries[NewIndex + 1].Command = FullCmdRaw;
 		AutoCompleteEntries[NewIndex + 1].Desc = Tuple.Value.Timestamp.ToString();
 		AutoCompleteEntries[NewIndex + 1].Color = TextColor;
@@ -736,7 +840,7 @@ void UMSaveManager::HandleRegisterConsoleAutoCompleteEntries(TArray<FAutoComplet
 	// #endif
 }
 
-void UMSaveManager::ConsoleSave()
+void UMSaveManager::ConsoleSaveGame()
 {
 	// #if UE_WITH_CHEAT_MANAGER
 	UMSaveNode* SaveNode = SaveGame();
@@ -766,7 +870,7 @@ void UMSaveManager::ConsoleSave()
 	// #endif
 }
 
-void UMSaveManager::ConsoleLoad(const TArray<FString>& Args)
+void UMSaveManager::ConsoleLoadGame(const TArray<FString>& Args)
 {
 	// #if UE_WITH_CHEAT_MANAGER
 	if (Args.Num() != 1)
@@ -808,7 +912,7 @@ void UMSaveManager::ConsoleLoad(const TArray<FString>& Args)
 	// #endif
 }
 
-void UMSaveManager::ConsoleLoadRaw(const TArray<FString>& Args)
+void UMSaveManager::ConsoleLoadGameRaw(const TArray<FString>& Args)
 {
 	// #if UE_WITH_CHEAT_MANAGER
 	if (Args.Num() != 1)
@@ -853,7 +957,7 @@ void UMSaveManager::ConsoleLoadRaw(const TArray<FString>& Args)
 	// #endif
 }
 
-void UMSaveManager::ConsoleSaveSlot(const TArray<FString>& Args)
+void UMSaveManager::ConsoleCreateSaveSlot(const TArray<FString>& Args)
 {
 	// #if UE_WITH_CHEAT_MANAGER
 	if (Args.Num() != 2)
@@ -874,7 +978,7 @@ void UMSaveManager::ConsoleSaveSlot(const TArray<FString>& Args)
 			0,
 			5.0f,
 			FColor::Green,
-			FString::Printf(TEXT("Saved save slot - %s:%d"), *Args[0], FCString::Atoi(*Args[1])));
+			FString::Printf(TEXT("Created save slot - %s:%d"), *Args[0], FCString::Atoi(*Args[1])));
 	}
 	else
 	{
@@ -882,12 +986,12 @@ void UMSaveManager::ConsoleSaveSlot(const TArray<FString>& Args)
 			0,
 			5.0f,
 			FColor::Red,
-			FString::Printf(TEXT("Failed to save save slot - %s:%d"), *Args[0], FCString::Atoi(*Args[1])));
+			FString::Printf(TEXT("Failed to create save slot - %s:%d"), *Args[0], FCString::Atoi(*Args[1])));
 	}
 	// #endif
 }
 
-void UMSaveManager::ConsoleLoadSlot(const TArray<FString>& Args)
+void UMSaveManager::ConsoleLoadSaveSlot(const TArray<FString>& Args)
 {
 	// #if UE_WITH_CHEAT_MANAGER
 	if (Args.Num() != 2)
@@ -921,7 +1025,7 @@ void UMSaveManager::ConsoleLoadSlot(const TArray<FString>& Args)
 	// #endif
 }
 
-void UMSaveManager::ConsoleDeleteSlot(const TArray<FString>& Args)
+void UMSaveManager::ConsoleDeleteSaveSlot(const TArray<FString>& Args)
 {
 	// #if UE_WITH_CHEAT_MANAGER
 	if (Args.Num() != 2)

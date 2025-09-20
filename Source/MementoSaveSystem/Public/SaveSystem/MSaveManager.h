@@ -9,8 +9,10 @@
 
 class IMSaveable;
 class UMSaveGame;
+class UMSaveIndex;
 class UMSaveNode;
 struct FKeyEvent;
+struct FMSlotId;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogMSaveManager, Log, All);
 
@@ -238,6 +240,10 @@ public:
 	void AsyncDeleteSaveSlotDynamic(
 		FMAsyncDeleteSlotDelegateDynamic Delegate, const FString& SlotName, const int32 UserIndex);
 
+	/** Returns the index of all known save slots */
+	UFUNCTION(BlueprintCallable, BlueprintPure = false, Category = "Save System")
+	TArray<FMSlotId> GetSaveIndex() const;
+
 	/** Returns the currently active save slot */
 	UMSaveGame* GetActiveSaveGame() const { return ActiveSaveGame; }
 
@@ -248,6 +254,10 @@ public:
 	void Deinitialize() override;
 
 private:
+	/** The index of all known save slots */
+	UPROPERTY()
+	TObjectPtr<UMSaveIndex> SaveIndex;
+
 	/** The currently active save slot */
 	UPROPERTY()
 	TObjectPtr<UMSaveGame> ActiveSaveGame;
@@ -281,22 +291,22 @@ private:
 	FDelegateHandle AutoCompleteDelegateHandle;
 
 	/** Calls SaveGame() */
-	void ConsoleSave();
+	void ConsoleSaveGame();
 
 	/** Calls LoadGame(saveId, false) and attempts to load the node with the provided save id */
-	void ConsoleLoad(const TArray<FString>& Args);
+	void ConsoleLoadGame(const TArray<FString>& Args);
 
 	/** Calls LoadGame(saveId, true) and attempts to load the node with the provided save id */
-	void ConsoleLoadRaw(const TArray<FString>& Args);
+	void ConsoleLoadGameRaw(const TArray<FString>& Args);
 
-	/** Calls SaveSlot(slotName, userIndex) */
-	void ConsoleSaveSlot(const TArray<FString>& Args);
+	/** Calls CreateSaveSlot(slotName, userIndex) */
+	void ConsoleCreateSaveSlot(const TArray<FString>& Args);
 
-	/** Calls LoadSlot(slotName, userIndex) */
-	void ConsoleLoadSlot(const TArray<FString>& Args);
+	/** Calls LoadSaveSlot(slotName, userIndex) */
+	void ConsoleLoadSaveSlot(const TArray<FString>& Args);
 
-	/** Calls DeleteSlot(slotName, userIndex) */
-	void ConsoleDeleteSlot(const TArray<FString>& Args);
+	/** Calls DeleteSaveSlot(slotName, userIndex) */
+	void ConsoleDeleteSaveSlot(const TArray<FString>& Args);
 };
 
 #pragma endregion
