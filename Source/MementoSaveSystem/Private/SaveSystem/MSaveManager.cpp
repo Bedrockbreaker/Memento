@@ -462,6 +462,55 @@ void UMSaveManager::AsyncDeleteSaveSlotDynamic(
 	AsyncDeleteSaveSlot(MoveTemp(NativeDelegate), SlotName, UserIndex);
 }
 
+UMSaveGame* UMSaveManager::CloneSaveSlot(
+	const FString& OriginalSlotName,
+	const int32	   OriginalUserIndex,
+	const FString& NewSlotName,
+	const int32	   NewUserIndex)
+{
+	if (!UGameplayStatics::DoesSaveGameExist(OriginalSlotName, OriginalUserIndex)) return nullptr;
+
+	UE_LOG(
+		LogMSaveManager,
+		Log,
+		TEXT("Cloning save slot - %s:%d -> %s:%d"),
+		*OriginalSlotName,
+		OriginalUserIndex,
+		*NewSlotName,
+		NewUserIndex);
+
+	UMSaveGame* OriginalSaveGame = LoadSaveSlot(OriginalSlotName, OriginalUserIndex, false);
+	if (!OriginalSaveGame) return nullptr;
+
+	UMSaveGame* NewSaveGame = CreateSaveSlot(NewSlotName, NewUserIndex);
+	if (!NewSaveGame) return nullptr;
+
+	NewSaveGame->SlotName = NewSlotName;
+	NewSaveGame->UserIndex = NewUserIndex;
+	NewSaveGame->MostRecentNodeId = OriginalSaveGame->MostRecentNodeId;
+
+	bool bSuccess = true;
+
+	for (const TTuple<FGuid, FMSaveNodeMetadata>& OriginalMetadata : OriginalSaveGame->SaveNodes)
+	{
+		FString		OriginalNodeSlotName = OriginalSaveGame->SlotName + OriginalMetadata.Key.ToString();
+		UMSaveNode* OriginalSaveNode =
+			Cast<UMSaveNode>(UGameplayStatics::LoadGameFromSlot(OriginalNodeSlotName, OriginalSaveGame->UserIndex));
+		UMSaveNode* NewSaveNode = CloneSaveNode(OriginalSaveNode);
+		if (!NewSaveNode) return nullptr;
+
+		FString NewNodeSlotName = NewSlotName + NewSaveNode->SaveId.ToString();
+		bSuccess = bSuccess && UGameplayStatics::SaveGameToSlot(NewSaveNode, NewNodeSlotName, NewSaveGame->UserIndex);
+		if (!bSuccess) return nullptr;
+
+		NewSaveGame->SaveNodes.Add(OriginalMetadata.Key, OriginalMetadata.Value);
+	}
+
+	bSuccess = bSuccess && UGameplayStatics::SaveGameToSlot(NewSaveGame, NewSlotName, NewSaveGame->UserIndex);
+
+	return bSuccess ? NewSaveGame : nullptr;
+}
+
 TArray<FMSlotId> UMSaveManager::GetSaveIndex() const
 {
 	return SaveIndex ? SaveIndex->SaveSlots : TArray<FMSlotId>();
@@ -552,6 +601,12 @@ void UMSaveManager::Initialize(FSubsystemCollectionBase& Collection)
 		FConsoleCommandWithArgsDelegate::CreateUObject(this, &UMSaveManager::ConsoleDeleteSaveSlot),
 		ECVF_Cheat);
 
+	Manager.RegisterConsoleCommand(
+		TEXT("MSaveManager.CloneSlot"),
+		TEXT("Clone a save slot by name and user index to a new name and user index"),
+		FConsoleCommandWithArgsDelegate::CreateUObject(this, &UMSaveManager::ConsoleCloneSaveSlot),
+		ECVF_Cheat);
+
 #endif
 }
 
@@ -573,6 +628,7 @@ void UMSaveManager::Deinitialize()
 	Manager.UnregisterConsoleObject(TEXT("MSaveManager.CreateSlot"));
 	Manager.UnregisterConsoleObject(TEXT("MSaveManager.LoadSlot"));
 	Manager.UnregisterConsoleObject(TEXT("MSaveManager.DeleteSlot"));
+	Manager.UnregisterConsoleObject(TEXT("MSaveManager.CloneSlot"));
 #endif
 
 	Super::Deinitialize();
@@ -666,6 +722,17 @@ UMSaveNode* UMSaveManager::CreateSaveNode(bool bInvisible, FGuid BranchParentId)
 
 		SaveNode->SaveData.Add(IMSaveable::Execute_GetSaveId(Saveable), MoveTemp(SaveData));
 	}
+
+	return SaveNode;
+}
+
+UMSaveNode* UMSaveManager::CloneSaveNode(const UMSaveNode* OriginalSaveNode)
+{
+	if (!OriginalSaveNode) return nullptr;
+
+	UMSaveNode* SaveNode = Cast<UMSaveNode>(UGameplayStatics::CreateSaveGameObject(UMSaveNode::StaticClass()));
+	SaveNode->SaveId = OriginalSaveNode->SaveId;
+	SaveNode->SaveData = OriginalSaveNode->SaveData;
 
 	return SaveNode;
 }
@@ -793,29 +860,35 @@ void UMSaveManager::HandleRegisterConsoleAutoCompleteEntries(TArray<FAutoComplet
 	// Generate autocompletion for save slots
 	for (const FMSlotId& SlotId : GetSaveIndex())
 	{
-		FString FullCmd = FString::Printf(TEXT("MSaveManager.LoadSlot %s %d"), *SlotId.SlotName, SlotId.UserIndex);
+		FString FullCmdLoad = FString::Printf(TEXT("MSaveManager.LoadSlot %s %d"), *SlotId.SlotName, SlotId.UserIndex);
 		FString FullCmdDelete =
 			FString::Printf(TEXT("MSaveManager.DeleteSlot %s %d"), *SlotId.SlotName, SlotId.UserIndex);
+		FString FullCmdClone =
+			FString::Printf(TEXT("MSaveManager.CloneSlot %s %d"), *SlotId.SlotName, SlotId.UserIndex);
 
 		int32 FoundIndex = INDEX_NONE;
 		for (int32 i = 0; i < AutoCompleteEntries.Num(); ++i)
 		{
-			if (AutoCompleteEntries[i].Command == FullCmd)
+			if (AutoCompleteEntries[i].Command == FullCmdLoad)
 			{
 				FoundIndex = i;
 				break;
 			}
 		}
 
-		int32 NewIndex = FoundIndex == INDEX_NONE ? AutoCompleteEntries.AddDefaulted(2) : FoundIndex;
+		int32 NewIndex = FoundIndex == INDEX_NONE ? AutoCompleteEntries.AddDefaulted(3) : FoundIndex;
 
 		// MSaveManager.LoadSlot <SlotName> <UserIndex>
-		AutoCompleteEntries[NewIndex].Command = FullCmd;
+		AutoCompleteEntries[NewIndex].Command = FullCmdLoad;
 		AutoCompleteEntries[NewIndex].Color = TextColor;
 
 		// MSaveManager.DeleteSlot <SlotName> <UserIndex>
 		AutoCompleteEntries[NewIndex + 1].Command = FullCmdDelete;
 		AutoCompleteEntries[NewIndex + 1].Color = TextColor;
+
+		// MSaveManager.CloneSlot <SlotName> <UserIndex>
+		AutoCompleteEntries[NewIndex + 2].Command = FullCmdClone;
+		AutoCompleteEntries[NewIndex + 2].Color = TextColor;
 	}
 
 	if (!ActiveSaveGame) return;
@@ -1067,6 +1140,54 @@ void UMSaveManager::ConsoleDeleteSaveSlot(const TArray<FString>& Args)
 			5.0f,
 			FColor::Red,
 			FString::Printf(TEXT("Failed to delete save slot - %s:%d"), *Args[0], FCString::Atoi(*Args[1])));
+	}
+#endif
+}
+
+void UMSaveManager::ConsoleCloneSaveSlot(const TArray<FString>& Args)
+{
+#if !UE_BUILD_SHIPPING
+	if (Args.Num() != 4)
+	{
+		if (GEngine)
+			GEngine->AddOnScreenDebugMessage(
+				0,
+				5.0f,
+				FColor::Red,
+				TEXT(
+					"Usage: MSaveSystem.CloneSlot <OriginalSlotName> <OriginalUserIndex> <NewSlotName> <NewUserIndex>"));
+		return;
+	}
+
+	UMSaveGame* SaveGame = CloneSaveSlot(Args[0], FCString::Atoi(*Args[1]), Args[2], FCString::Atoi(*Args[3]));
+
+	if (!GEngine) return;
+
+	if (SaveGame)
+	{
+		GEngine->AddOnScreenDebugMessage(
+			0,
+			5.0f,
+			FColor::Green,
+			FString::Printf(
+				TEXT("Cloned save slot - %s:%d -> %s:%d"),
+				*Args[0],
+				FCString::Atoi(*Args[1]),
+				*Args[2],
+				FCString::Atoi(*Args[3])));
+	}
+	else
+	{
+		GEngine->AddOnScreenDebugMessage(
+			0,
+			5.0f,
+			FColor::Red,
+			FString::Printf(
+				TEXT("Failed to clone save slot - %s:%d -> %s:%d"),
+				*Args[0],
+				FCString::Atoi(*Args[1]),
+				*Args[2],
+				FCString::Atoi(*Args[3])));
 	}
 #endif
 }

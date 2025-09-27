@@ -86,6 +86,19 @@ MEMENTOSAVESYSTEM_API DECLARE_DELEGATE_ThreeParams(FMAsyncDeleteSlotDelegate, co
 DECLARE_DYNAMIC_DELEGATE_ThreeParams(
 	FMAsyncDeleteSlotDelegateDynamic, const FString&, SlotName, const int32, UserIndex, bool, bSuccess);
 
+/**
+ * Delegate called from AsyncCloneSaveSlot. First two parameters are passed in SlotName and UserIndex for the clone,
+ * third parameter is the resulting UMSaveGame clone (null on failure).
+ */
+MEMENTOSAVESYSTEM_API DECLARE_DELEGATE_ThreeParams(FMAsyncCloneSlotDelegate, const FString&, const int32, UMSaveGame*);
+
+/**
+ * Bluprint-exposed delegate called from AsyncCloneSaveSlotDynamic. First two paramters are passed in
+ * SlotName and UserIndex, third parameter is the resulting UMSaveGame clone (null on failure).
+ */
+DECLARE_DYNAMIC_DELEGATE_ThreeParams(
+	FMAsyncCloneSlotDelegateDynamic, const FString&, SlotName, const int32, UserIndex, UMSaveGame*, SaveGame);
+
 #pragma endregion
 
 #pragma region UMSavemanager
@@ -228,7 +241,6 @@ public:
 
 	/**
 	 * Asynchronously deletes a save slot and all of its save nodes and calls a delegate.
-	 * Bluprint-exposed version.
 	 */
 	void AsyncDeleteSaveSlot(FMAsyncDeleteSlotDelegate Delegate, const FString& SlotName, const int32 UserIndex);
 
@@ -239,6 +251,16 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Save System", meta = (DisplayName = "Async Delete Save Slot"))
 	void AsyncDeleteSaveSlotDynamic(
 		FMAsyncDeleteSlotDelegateDynamic Delegate, const FString& SlotName, const int32 UserIndex);
+
+	/**
+	 * Clones a save slot stored with the given slot name and user index, returns the new UMSaveGame.
+	 * Not intended for use in production. Just a debugging aid. VERY SLOW TO RUN.
+	 */
+	UMSaveGame* CloneSaveSlot(
+		const FString& OriginalSlotName,
+		const int32	   OriginalUserIndex,
+		const FString& NewSlotName,
+		const int32	   NewUserIndex);
 
 	/** Returns the index of all known save slots */
 	UFUNCTION(BlueprintCallable, BlueprintPure = false, Category = "Save System")
@@ -270,6 +292,9 @@ private:
 
 	/** Creates a new save node and adds it to the save graph */
 	UMSaveNode* CreateSaveNode(bool bInvisible = false, FGuid BranchParentId = FGuid());
+
+	/** Clones a save node. Does not add it to the save graph. */
+	UMSaveNode* CloneSaveNode(const UMSaveNode* OriginalSaveNode);
 
 	/** Deserializes a save node and triggers the game to load it */
 	bool LoadSaveNode(UMSaveNode* SaveNode);
@@ -307,6 +332,9 @@ private:
 
 	/** Calls DeleteSaveSlot(slotName, userIndex) */
 	void ConsoleDeleteSaveSlot(const TArray<FString>& Args);
+
+	/** Calls CloneSaveSlot(originalSlotName, originalUserIndex, newSlotName, newUserIndex) */
+	void ConsoleCloneSaveSlot(const TArray<FString>& Args);
 };
 
 #pragma endregion
