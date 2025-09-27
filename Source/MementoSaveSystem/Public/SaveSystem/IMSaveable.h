@@ -24,7 +24,11 @@ public:
 	FString GetSaveId() const;
 
 	/** The stable save id for this actor. This is required to be overridden. */
-	virtual FString GetSaveId_Implementation() const { return TEXT(""); }
+	virtual FString GetSaveId_Implementation() const
+	{
+		checkf(false, TEXT("GetSaveId_Implementation must be overridden. (Or don't call the parent function)"));
+		return TEXT("");
+	}
 
 	/**
 	 * If returning false, the Save and Load functions will not be called,
