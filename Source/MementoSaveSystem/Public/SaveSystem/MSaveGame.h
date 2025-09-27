@@ -20,7 +20,7 @@ public:
 
 	/** The user index of the save slot */
 	UPROPERTY(BlueprintReadOnly)
-	int32 UserIndex;
+	int32 UserIndex = 0;
 
 	/** A DAG of metadata for each save node, to avoid unncessary deserialization during graph traversal */
 	UPROPERTY()

@@ -17,7 +17,7 @@ public:
 
 	/** The user index of the save slot */
 	UPROPERTY(BlueprintReadOnly)
-	int32 UserIndex;
+	int32 UserIndex = 0;
 
 	/** Equality operator */
 	bool operator==(const FMSlotId& Other) const { return SlotName == Other.SlotName && UserIndex == Other.UserIndex; }

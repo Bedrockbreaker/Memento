@@ -26,3 +26,13 @@ void AMPlayerController::SetupInputComponent()
 		Subsystem->AddMappingContext(CurrentContext, 0);
 	}
 }
+
+void AMPlayerController::Save(FArchive& OutData)
+{
+	OutData << ControlRotation;
+}
+
+void AMPlayerController::Load(FArchive& InData)
+{
+	InData << ControlRotation;
+}

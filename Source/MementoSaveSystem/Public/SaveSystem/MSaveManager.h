@@ -265,8 +265,8 @@ private:
 	/** An internal listener for OnSaveSlotUpdated */
 	void OnSaveSlotUpdated_Internal(UMSaveGame* SaveGame);
 
-	/** Finds all simple saveables in the world (i.e. actors which don't require custom serialization) */
-	void FindSaveables(TArray<TScriptInterface<IMSaveable>>& OutSimpleSaveables) const;
+	/** Finds all saveables in the world */
+	void FindSaveables(TArray<UObject*>& OutSaveables) const;
 
 	/** Creates a new save node and adds it to the save graph */
 	UMSaveNode* CreateSaveNode(bool bInvisible = false, FGuid BranchParentId = FGuid());

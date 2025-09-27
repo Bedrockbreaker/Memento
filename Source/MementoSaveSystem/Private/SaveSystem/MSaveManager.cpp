@@ -502,7 +502,7 @@ void UMSaveManager::Initialize(FSubsystemCollectionBase& Collection)
 		UGameplayStatics::AsyncLoadGameFromSlot(TEXT("SaveIndex"), 0, MoveTemp(Delegate));
 	}
 
-	// #if UE_WITH_CHEAT_MANAGER
+#if !UE_BUILD_SHIPPING
 
 	KeyDownDelegateHandle =
 		FSlateApplication::Get().OnApplicationPreInputKeyDownListener().AddUObject(this, &UMSaveManager::HandleKeyDown);
@@ -552,14 +552,14 @@ void UMSaveManager::Initialize(FSubsystemCollectionBase& Collection)
 		FConsoleCommandWithArgsDelegate::CreateUObject(this, &UMSaveManager::ConsoleDeleteSaveSlot),
 		ECVF_Cheat);
 
-	// #endif
+#endif
 }
 
 void UMSaveManager::Deinitialize()
 {
 	OnSaveSlotUpdated.RemoveAll(this);
 
-	// #if UE_WITH_CHEAT_MANAGER
+#if !UE_BUILD_SHIPPING
 	if (FSlateApplication::IsInitialized())
 		FSlateApplication::Get().OnApplicationPreInputKeyDownListener().Remove(KeyDownDelegateHandle);
 
@@ -573,14 +573,14 @@ void UMSaveManager::Deinitialize()
 	Manager.UnregisterConsoleObject(TEXT("MSaveManager.CreateSlot"));
 	Manager.UnregisterConsoleObject(TEXT("MSaveManager.LoadSlot"));
 	Manager.UnregisterConsoleObject(TEXT("MSaveManager.DeleteSlot"));
-	// #endif
+#endif
 
 	Super::Deinitialize();
 }
 
 void UMSaveManager::OnSaveSlotUpdated_Internal(UMSaveGame* SaveGame)
 {
-	// #if UE_WITH_CHEAT_MANAGER
+#if !UE_BUILD_SHIPPING
 	if (IsInGameThread())
 	{
 		RefreshConsoleCommands();
@@ -589,10 +589,10 @@ void UMSaveManager::OnSaveSlotUpdated_Internal(UMSaveGame* SaveGame)
 	{
 		AsyncTask(ENamedThreads::GameThread, [this]() -> void { RefreshConsoleCommands(); });
 	}
-	// #endif
+#endif
 }
 
-void UMSaveManager::FindSaveables(TArray<TScriptInterface<IMSaveable>>& OutSaveables) const
+void UMSaveManager::FindSaveables(TArray<UObject*>& OutSaveables) const
 {
 	UWorld* World = GetWorld();
 	if (!World) return;
@@ -601,18 +601,14 @@ void UMSaveManager::FindSaveables(TArray<TScriptInterface<IMSaveable>>& OutSavea
 	{
 		AActor* Actor = *It;
 
-		if (Actor->GetClass()->ImplementsInterface(UMSaveable::StaticClass()))
-		{
-			OutSaveables.Add(Actor);
-		}
+		if (Actor->IsPendingKillPending()) continue;
+
+		if (Actor->Implements<UMSaveable>()) OutSaveables.Add(Actor);
 
 		// Components may also be saveable
 		for (UActorComponent* Component : Actor->GetComponents())
 		{
-			if (Component->GetClass()->ImplementsInterface(UMSaveable::StaticClass()))
-			{
-				OutSaveables.Add(Component);
-			}
+			if (Component->Implements<UMSaveable>()) OutSaveables.Add(Component);
 		}
 	}
 }
@@ -644,24 +640,31 @@ UMSaveNode* UMSaveManager::CreateSaveNode(bool bInvisible, FGuid BranchParentId)
 		ActiveSaveGame->UserIndex,
 		*SaveId.ToString());
 
-	TArray<TScriptInterface<IMSaveable>> Saveables;
+	TArray<UObject*> Saveables;
 	FindSaveables(Saveables);
 
-	for (const TScriptInterface<IMSaveable>& Saveable : Saveables)
+	for (UObject* Saveable : Saveables)
 	{
 		if (!Saveable) continue;
 
 		FMSaveData SaveData;
-		SaveData.ClassName = Saveable.GetObject()->GetClass()->GetPathName();
+		SaveData.ClassName = Saveable->GetClass()->GetPathName();
+		SaveData.ActorFName = Saveable->GetFName();
+
+		AActor* Actor = Cast<AActor>(Saveable);
+		if (Actor) SaveData.Transform = Actor->GetActorTransform();
 
 		FMemoryWriter Writer(SaveData.Data, true);
-		if (Saveable->RequiresCustomSerialization()) Saveable->Save(Writer);
+
+		IMSaveable* NativeSaveable = Cast<IMSaveable>(Saveable);
+		if (NativeSaveable && NativeSaveable->RequiresCustomSerialization()) NativeSaveable->Save(Writer);
+
 		FObjectAndNameAsStringProxyArchive Archive(Writer, true);
 		Archive.ArIsSaveGame = true; // Serialize all properties marked as SaveGame
 		Archive.ArNoDelta = true;	 // Blueprint properties don't serialize consistently without this
-		Saveable.GetObject()->Serialize(Archive);
+		Saveable->Serialize(Archive);
 
-		SaveNode->SaveData.Add(Saveable->GetSaveId(), MoveTemp(SaveData));
+		SaveNode->SaveData.Add(IMSaveable::Execute_GetSaveId(Saveable), MoveTemp(SaveData));
 	}
 
 	return SaveNode;
@@ -671,23 +674,32 @@ bool UMSaveManager::LoadSaveNode(UMSaveNode* SaveNode)
 {
 	if (!SaveNode) return false;
 
-	TArray<TScriptInterface<IMSaveable>> Saveables;
+	TArray<UObject*> Saveables;
 	FindSaveables(Saveables);
 
-	for (const TScriptInterface<IMSaveable>& Saveable : Saveables)
+	for (UObject* Saveable : Saveables)
 	{
 		if (!Saveable) continue;
 
-		FMSaveData* SaveData = SaveNode->SaveData.Find(Saveable->GetSaveId());
+		// TODO: Store a hash map of SaveId -> Saveable to avoid O(n^2) search
+		FMSaveData* SaveData = SaveNode->SaveData.Find(IMSaveable::Execute_GetSaveId(Saveable));
 		// TODO: create runtime-generated objects if they don't exist
 		if (!SaveData) continue;
 
+		UE_LOG(LogMSaveManager, Log, TEXT("  Loading saveable - %s"), *Saveable->GetName());
+
+		AActor* Actor = Cast<AActor>(Saveable);
+		if (Actor) Actor->SetActorTransform(SaveData->Transform);
+
 		FMemoryReader Reader(SaveData->Data, true);
-		if (Saveable->RequiresCustomSerialization()) Saveable->Load(Reader);
+
+		IMSaveable* NativeSaveable = Cast<IMSaveable>(Saveable);
+		if (NativeSaveable && NativeSaveable->RequiresCustomSerialization()) NativeSaveable->Load(Reader);
+
 		FObjectAndNameAsStringProxyArchive Archive(Reader, true);
 		Archive.ArIsSaveGame = true; // Serialize all properties marked as SaveGame
 		Archive.ArNoDelta = true;	 // Blueprint properties don't serialize consistently without this
-		Saveable.GetObject()->Serialize(Archive);
+		Saveable->Serialize(Archive);
 	}
 
 	return true;
@@ -761,7 +773,7 @@ void UMSaveManager::HandleKeyDown(const FKeyEvent& Event)
 
 void UMSaveManager::RefreshConsoleCommands()
 {
-	// #if UE_WITH_CHEAT_MANAGER
+#if !UE_BUILD_SHIPPING
 	if (!GEngine) return;
 	if (!GEngine->GameViewport) return;
 
@@ -770,12 +782,12 @@ void UMSaveManager::RefreshConsoleCommands()
 
 	// Mark commands as out of date, rebuild on next input
 	Console->bIsRuntimeAutoCompleteUpToDate = false;
-	// #endif
+#endif
 }
 
 void UMSaveManager::HandleRegisterConsoleAutoCompleteEntries(TArray<FAutoCompleteCommand>& AutoCompleteEntries)
 {
-	// #if UE_WITH_CHEAT_MANAGER
+#if !UE_BUILD_SHIPPING
 	FColor TextColor = GetDefault<UConsoleSettings>()->AutoCompleteCommandColor;
 
 	// Generate autocompletion for save slots
@@ -837,12 +849,12 @@ void UMSaveManager::HandleRegisterConsoleAutoCompleteEntries(TArray<FAutoComplet
 		AutoCompleteEntries[NewIndex + 1].Desc = Tuple.Value.Timestamp.ToString();
 		AutoCompleteEntries[NewIndex + 1].Color = TextColor;
 	}
-	// #endif
+#endif
 }
 
 void UMSaveManager::ConsoleSaveGame()
 {
-	// #if UE_WITH_CHEAT_MANAGER
+#if !UE_BUILD_SHIPPING
 	UMSaveNode* SaveNode = SaveGame();
 
 	if (!GEngine) return;
@@ -867,12 +879,12 @@ void UMSaveManager::ConsoleSaveGame()
 			FColor::Red,
 			FString::Printf(TEXT("Failed to save game - %s:%d"), *ActiveSaveGame->SlotName, ActiveSaveGame->UserIndex));
 	}
-	// #endif
+#endif
 }
 
 void UMSaveManager::ConsoleLoadGame(const TArray<FString>& Args)
 {
-	// #if UE_WITH_CHEAT_MANAGER
+#if !UE_BUILD_SHIPPING
 	if (Args.Num() != 1)
 	{
 		if (GEngine) GEngine->AddOnScreenDebugMessage(0, 5.0f, FColor::Red, TEXT("Usage: MSaveSystem.Load <SaveId>"));
@@ -909,12 +921,12 @@ void UMSaveManager::ConsoleLoadGame(const TArray<FString>& Args)
 		GEngine->AddOnScreenDebugMessage(
 			0, 5.0f, FColor::Red, FString::Printf(TEXT("Failed to load save - %s (Does it exist?)"), *Args[0]));
 	}
-	// #endif
+#endif
 }
 
 void UMSaveManager::ConsoleLoadGameRaw(const TArray<FString>& Args)
 {
-	// #if UE_WITH_CHEAT_MANAGER
+#if !UE_BUILD_SHIPPING
 	if (Args.Num() != 1)
 	{
 		if (GEngine)
@@ -954,12 +966,12 @@ void UMSaveManager::ConsoleLoadGameRaw(const TArray<FString>& Args)
 			0, 5.0f, FColor::Red, FString::Printf(TEXT("Failed to load save - %s (Does it exist?)"), *Args[0]));
 	}
 
-	// #endif
+#endif
 }
 
 void UMSaveManager::ConsoleCreateSaveSlot(const TArray<FString>& Args)
 {
-	// #if UE_WITH_CHEAT_MANAGER
+#if !UE_BUILD_SHIPPING
 	if (Args.Num() != 2)
 	{
 		if (GEngine)
@@ -988,12 +1000,12 @@ void UMSaveManager::ConsoleCreateSaveSlot(const TArray<FString>& Args)
 			FColor::Red,
 			FString::Printf(TEXT("Failed to create save slot - %s:%d"), *Args[0], FCString::Atoi(*Args[1])));
 	}
-	// #endif
+#endif
 }
 
 void UMSaveManager::ConsoleLoadSaveSlot(const TArray<FString>& Args)
 {
-	// #if UE_WITH_CHEAT_MANAGER
+#if !UE_BUILD_SHIPPING
 	if (Args.Num() != 2)
 	{
 		if (GEngine)
@@ -1022,12 +1034,12 @@ void UMSaveManager::ConsoleLoadSaveSlot(const TArray<FString>& Args)
 			FColor::Red,
 			FString::Printf(TEXT("Failed to load save slot - %s:%d"), *Args[0], FCString::Atoi(*Args[1])));
 	}
-	// #endif
+#endif
 }
 
 void UMSaveManager::ConsoleDeleteSaveSlot(const TArray<FString>& Args)
 {
-	// #if UE_WITH_CHEAT_MANAGER
+#if !UE_BUILD_SHIPPING
 	if (Args.Num() != 2)
 	{
 		if (GEngine)
@@ -1056,5 +1068,5 @@ void UMSaveManager::ConsoleDeleteSaveSlot(const TArray<FString>& Args)
 			FColor::Red,
 			FString::Printf(TEXT("Failed to delete save slot - %s:%d"), *Args[0], FCString::Atoi(*Args[1])));
 	}
-	// #endif
+#endif
 }

@@ -20,7 +20,11 @@ class MEMENTOSAVESYSTEM_API IMSaveable
 
 public:
 	/** The stable save id for this actor */
-	virtual FString GetSaveId() const = 0;
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "MSave System")
+	FString GetSaveId() const;
+
+	/** The stable save id for this actor. This is required to be overridden. */
+	virtual FString GetSaveId_Implementation() const { return TEXT(""); }
 
 	/**
 	 * If returning false, the Save and Load functions will not be called,

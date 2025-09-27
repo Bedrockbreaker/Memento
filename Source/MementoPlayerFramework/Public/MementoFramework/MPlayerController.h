@@ -3,13 +3,14 @@
 #pragma once
 
 #include "GameFramework/PlayerController.h"
+#include "SaveSystem/IMSaveable.h"
 
 #include "MPlayerController.generated.h"
 
 class UInputMappingContext;
 
 UCLASS(abstract)
-class MEMENTOPLAYERFRAMEWORK_API AMPlayerController : public APlayerController
+class MEMENTOPLAYERFRAMEWORK_API AMPlayerController : public APlayerController, public IMSaveable
 {
 	GENERATED_BODY()
 
@@ -23,4 +24,15 @@ protected:
 
 	/** Setup input mapping contexts */
 	virtual void SetupInputComponent() override;
+
+private:
+	/** Consistent save id */
+	virtual FString GetSaveId_Implementation() const override { return TEXT("TheStrangerController"); }
+
+	/** Serialize the ControlRotation */
+	virtual bool RequiresCustomSerialization() const override { return true; }
+
+	/** Save/Load */
+	virtual void Save(FArchive& OutData) override;
+	virtual void Load(FArchive& InData) override;
 };
