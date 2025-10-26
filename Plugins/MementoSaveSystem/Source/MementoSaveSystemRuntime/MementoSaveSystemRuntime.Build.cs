@@ -2,19 +2,16 @@
 
 using UnrealBuildTool;
 
-public class MementoSaveSystem : ModuleRules
+public class MementoSaveSystemRuntime : ModuleRules
 {
-	public MementoSaveSystem(ReadOnlyTargetRules Target) : base(Target)
+	public MementoSaveSystemRuntime(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
 		PublicDependencyModuleNames.AddRange(new string[] {
 			"Core",
 			"CoreUObject",
-			"Engine",
-			"EngineSettings",
-			"InputCore",
-			"Slate"
+			"Engine"
 		});
 	}
 }

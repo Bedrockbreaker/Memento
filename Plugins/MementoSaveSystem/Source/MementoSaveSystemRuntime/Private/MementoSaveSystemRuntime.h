@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "Modules/ModuleManager.h"
 
-class FMementoSaveSystemModule : public IModuleInterface
+class FMementoSaveSystemRuntimeModule : public IModuleInterface
 {
 public:
 	virtual void StartupModule() override {};

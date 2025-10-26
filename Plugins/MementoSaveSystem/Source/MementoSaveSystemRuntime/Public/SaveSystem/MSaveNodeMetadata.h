@@ -6,7 +6,7 @@
 
 /** Lightweight metadata for a single save node. Used to avoid unncessary deserialization. */
 USTRUCT(BlueprintType)
-struct MEMENTOSAVESYSTEM_API FMSaveNodeMetadata
+struct MEMENTOSAVESYSTEMRUNTIME_API FMSaveNodeMetadata
 {
 	GENERATED_BODY()
 

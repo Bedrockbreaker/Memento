@@ -6,6 +6,8 @@
 
 #include "IMSaveable.generated.h"
 
+class UMSaveHistory;
+
 /** Internal interface for saveable actors */
 UINTERFACE(MinimalAPI)
 class UMSaveable : public UInterface
@@ -14,7 +16,7 @@ class UMSaveable : public UInterface
 };
 
 /** Interface for saveable actors */
-class MEMENTOSAVESYSTEM_API IMSaveable
+class MEMENTOSAVESYSTEMRUNTIME_API IMSaveable
 {
 	GENERATED_BODY()
 
@@ -37,9 +39,18 @@ public:
 	 */
 	virtual bool RequiresCustomSerialization() const { return false; }
 
-	/** Custom serialization for this actor */
-	virtual void Save(FArchive& OutData) {}
+	/**
+	 * Custom serialization for this actor. This should leave the actor in a valid state.
+	 * If this function is not overridden, only properties marked as SaveGame will be serialized.
+	 * SaveGame properties will still be automatically serialized if RequiresCustomSerialization returns true.
+	 */
+	virtual void Save(FArchive& OutData, bool bRecall, UMSaveHistory* SaveHistory) {}
 
-	/** Custom deserialization for this actor */
-	virtual void Load(FArchive& InData) {}
+	/**
+	 * Custom deserialization for this actor.
+	 * If this function is not overridden, only properties marked as SaveGame will be deserialized.
+	 * SaveGame properties will still be automatically deserialized if RequiresCustomSerialization returns true.
+	 * If bLoadRaw is true, this saveable should not attempt to
+	 */
+	virtual void Load(FArchive& InData, bool bRecall, UMSaveHistory* SaveHistory) {}
 };

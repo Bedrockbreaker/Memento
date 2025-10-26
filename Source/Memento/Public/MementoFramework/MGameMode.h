@@ -6,6 +6,7 @@
 
 #include "MGameMode.generated.h"
 
+/** Default game mode for Memento */
 UCLASS(MinimalAPI)
 class AMGameMode : public AGameModeBase
 {
@@ -13,4 +14,6 @@ class AMGameMode : public AGameModeBase
 
 public:
 	AMGameMode();
+
+	virtual void StartPlay() override;
 };

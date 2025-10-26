@@ -9,7 +9,7 @@
 
 /** Container for save game data within a single save slot */
 UCLASS()
-class MEMENTOSAVESYSTEM_API UMSaveGame : public USaveGame
+class MEMENTOSAVESYSTEMRUNTIME_API UMSaveGame : public USaveGame
 {
 	GENERATED_BODY()
 

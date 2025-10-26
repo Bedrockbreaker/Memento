@@ -2,9 +2,9 @@
 
 using UnrealBuildTool;
 
-public class MementoSaveSystemEditor : ModuleRules
+public class MementoSaveSystemDeveloper : ModuleRules
 {
-	public MementoSaveSystemEditor(ReadOnlyTargetRules Target) : base(Target)
+	public MementoSaveSystemDeveloper(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 
@@ -13,11 +13,11 @@ public class MementoSaveSystemEditor : ModuleRules
 			"CoreUObject",
 			"Engine",
 
-			"UnrealEd",
-			"SlateCore",
+			"EngineSettings",
+			"InputCore",
 			"Slate",
 
-			"MementoSaveSystem"
+			"MementoSaveSystemRuntime"
 		});
 	}
 }

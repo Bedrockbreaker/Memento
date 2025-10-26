@@ -16,7 +16,7 @@ public class MementoPlayerFramework : ModuleRules
 			"EnhancedInput",
 
 			"Memento",
-			"MementoSaveSystem"
+			"MementoSaveSystemRuntime"
 		});
 	}
 }

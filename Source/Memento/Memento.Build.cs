@@ -16,7 +16,7 @@ public class Memento : ModuleRules
 			"InputCore",
 			"EnhancedInput",
 
-			"MementoSaveSystem"
+			"MementoSaveSystemRuntime"
 		});
 	}
 }

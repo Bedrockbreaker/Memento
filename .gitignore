@@ -7,6 +7,7 @@ Build/*/**
 !Build/**/*.ico
 DerivedDataCache/*
 Intermediate/*
+Plugins/*/Binaries/*
 Plugins/*/Intermediate/*
 Saved/*
 

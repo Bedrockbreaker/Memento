@@ -33,6 +33,6 @@ private:
 	virtual bool RequiresCustomSerialization() const override { return true; }
 
 	/** Save/Load */
-	virtual void Save(FArchive& OutData) override;
-	virtual void Load(FArchive& InData) override;
+	virtual void Save(FArchive& OutData, bool bRecall, UMSaveHistory* SaveHistory) override;
+	virtual void Load(FArchive& InData, bool bRecall, UMSaveHistory* SaveHistory) override;
 };

@@ -6,7 +6,7 @@
 
 /** A simple struct to identify a save slot */
 USTRUCT(BlueprintType)
-struct MEMENTOSAVESYSTEM_API FMSlotId
+struct MEMENTOSAVESYSTEMRUNTIME_API FMSlotId
 {
 	GENERATED_BODY()
 

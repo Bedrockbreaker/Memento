@@ -9,6 +9,7 @@
 
 class IMSaveable;
 class UMSaveGame;
+class UMSaveHistory;
 class UMSaveIndex;
 class UMSaveNode;
 struct FKeyEvent;
@@ -21,11 +22,15 @@ DECLARE_LOG_CATEGORY_EXTERN(LogMSaveManager, Log, All);
 /** Delegate called when a save slot is updated (new node, slot changed, etc.). Passes in the UMSaveGame. */
 DECLARE_MULTICAST_DELEGATE_OneParam(FMOnSaveSlotUpdatedDelegate, UMSaveGame*);
 
+/** Delegate called when the save index is updated. Passes in the global UMSaveIndex. */
+DECLARE_MULTICAST_DELEGATE_OneParam(FMOnSaveIndexUpdatedDelegate, UMSaveIndex*);
+
 /**
  * Delegate called from AsyncSaveGame. First two parameters are contextual SlotName and UserIndex,
  * third parameter is the resulting UMSaveNode (null on failure).
  */
-MEMENTOSAVESYSTEM_API DECLARE_DELEGATE_ThreeParams(FMAsyncSaveGameDelegate, const FString&, const int32, UMSaveNode*);
+MEMENTOSAVESYSTEMRUNTIME_API
+	DECLARE_DELEGATE_ThreeParams(FMAsyncSaveGameDelegate, const FString&, const int32, UMSaveNode*);
 
 /**
  * Bluprint-exposed delegate called from AsyncSaveGameDynamic. First two paramters are contextual
@@ -36,22 +41,38 @@ DECLARE_DYNAMIC_DELEGATE_ThreeParams(
 
 /**
  * Delegate called from AsyncLoadGame. First two parameters are contextual SlotName and UserIndex,
- * third parameter is the invisible UMSaveNode automatically created (null on failure).
+ * third parameter is the UMSaveNode that was loaded (null on failure).
  */
-MEMENTOSAVESYSTEM_API DECLARE_DELEGATE_ThreeParams(FMAsyncLoadGameDelegate, const FString&, const int32, UMSaveNode*);
+MEMENTOSAVESYSTEMRUNTIME_API
+	DECLARE_DELEGATE_ThreeParams(FMAsyncLoadGameDelegate, const FString&, const int32, UMSaveNode*);
 
 /**
  * Bluprint-exposed delegate called from AsyncLoadGameDynamic. First two paramters are contextual
- * SlotName and UserIndex, third parameter is the invisible UMSaveNode automatically created (null on failure).
+ * SlotName and UserIndex, third parameter is the UMSaveNode that was loaded (null on failure).
  */
 DECLARE_DYNAMIC_DELEGATE_ThreeParams(
 	FMAsyncLoadGameDelegateDynamic, const FString&, SlotName, const int32, UserIndex, UMSaveNode*, SaveNode);
 
 /**
+ * Delegate called from AsyncRecallGame. First two parameters are contextual SlotName and UserIndex,
+ * third parameter is the invisible UMSaveNode automatically created (null on failure).
+ */
+MEMENTOSAVESYSTEMRUNTIME_API
+	DECLARE_DELEGATE_ThreeParams(FMAsyncRecallGameDelegate, const FString&, const int32, UMSaveNode*);
+
+/**
+ * Bluprint-exposed delegate called from AsyncRecallGameDynamic. First two paramters are contextual
+ * SlotName and UserIndex, third parameter is the invisible UMSaveNode automatically created (null on failure).
+ */
+DECLARE_DYNAMIC_DELEGATE_ThreeParams(
+	FMAsyncRecallGameDelegateDynamic, const FString&, SlotName, const int32, UserIndex, UMSaveNode*, SaveNode);
+
+/**
  * Delegate called from AsyncCreateSaveSlot. First two parameters are passed in SlotName and UserIndex,
  * third parameter is the resulting UMSaveGame (null on failure).
  */
-MEMENTOSAVESYSTEM_API DECLARE_DELEGATE_ThreeParams(FMAsyncCreateSlotDelegate, const FString&, const int32, UMSaveGame*);
+MEMENTOSAVESYSTEMRUNTIME_API
+	DECLARE_DELEGATE_ThreeParams(FMAsyncCreateSlotDelegate, const FString&, const int32, UMSaveGame*);
 
 /**
  * Bluprint-exposed delegate called from AsyncCreateSaveSlotDynamic. First two paramters are passed in
@@ -64,7 +85,8 @@ DECLARE_DYNAMIC_DELEGATE_ThreeParams(
  * Delegate called from AsyncLoadSaveSlot. First two parameters are passed in SlotName and UserIndex,
  * third parameter is the loaded UMSaveGame (null on failure).
  */
-MEMENTOSAVESYSTEM_API DECLARE_DELEGATE_ThreeParams(FMAsyncLoadSlotDelegate, const FString&, const int32, UMSaveGame*);
+MEMENTOSAVESYSTEMRUNTIME_API
+	DECLARE_DELEGATE_ThreeParams(FMAsyncLoadSlotDelegate, const FString&, const int32, UMSaveGame*);
 
 /**
  * Bluprint-exposed delegate called from AsyncLoadSaveSlotDynamic. First two paramters are passed in
@@ -77,7 +99,7 @@ DECLARE_DYNAMIC_DELEGATE_ThreeParams(
  * Delegate called from AsyncDeleteSaveSlot. First two parameters are passed in SlotName and UserIndex,
  * third parameter is whether the operation succeeded.
  */
-MEMENTOSAVESYSTEM_API DECLARE_DELEGATE_ThreeParams(FMAsyncDeleteSlotDelegate, const FString&, const int32, bool);
+MEMENTOSAVESYSTEMRUNTIME_API DECLARE_DELEGATE_ThreeParams(FMAsyncDeleteSlotDelegate, const FString&, const int32, bool);
 
 /**
  * Bluprint-exposed delegate called from AsyncDeleteSaveSlotDynamic. First two paramters are passed in
@@ -90,7 +112,8 @@ DECLARE_DYNAMIC_DELEGATE_ThreeParams(
  * Delegate called from AsyncCloneSaveSlot. First two parameters are passed in SlotName and UserIndex for the clone,
  * third parameter is the resulting UMSaveGame clone (null on failure).
  */
-MEMENTOSAVESYSTEM_API DECLARE_DELEGATE_ThreeParams(FMAsyncCloneSlotDelegate, const FString&, const int32, UMSaveGame*);
+MEMENTOSAVESYSTEMRUNTIME_API
+	DECLARE_DELEGATE_ThreeParams(FMAsyncCloneSlotDelegate, const FString&, const int32, UMSaveGame*);
 
 /**
  * Bluprint-exposed delegate called from AsyncCloneSaveSlotDynamic. First two paramters are passed in
@@ -105,7 +128,7 @@ DECLARE_DYNAMIC_DELEGATE_ThreeParams(
 
 /** A game instance subsystem that handles non-linear save and load operations */
 UCLASS()
-class MEMENTOSAVESYSTEM_API UMSaveManager : public UGameInstanceSubsystem
+class MEMENTOSAVESYSTEMRUNTIME_API UMSaveManager : public UGameInstanceSubsystem
 {
 	GENERATED_BODY()
 
@@ -113,55 +136,84 @@ public:
 	/** Called when a save slot is updated (node creation/deletion, save slot change, etc.) */
 	FMOnSaveSlotUpdatedDelegate OnSaveSlotUpdated;
 
+	/** Called when the save index is updated (added/removed/cloned save slots, etc.) */
+	FMOnSaveIndexUpdatedDelegate OnSaveIndexUpdated;
+
 	/**
 	 * Creates a node in the save graph and returns it.
-	 * Providing no BranchParentId creates a node with both parents pointing to the previous node.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Save System")
-	UMSaveNode* SaveGame(bool bInvisible = false, FGuid BranchParentId = FGuid());
+	UMSaveNode* SaveGame(bool bInvisible = false);
 
 	/**
 	 * Asynchronously creates a node in the save graph and calls a delegate.
-	 * Providing no BranchParentId creates a node with both parents pointing to the previous node.
 	 */
-	void AsyncSaveGame(FMAsyncSaveGameDelegate Delegate, bool bInvisible = false, FGuid BranchParentId = FGuid());
+	void AsyncSaveGame(FMAsyncSaveGameDelegate Delegate, bool bInvisible = false);
 
 	/**
 	 * Asynchronously creates a node in the save graph and calls a delegate.
-	 * Providing no BranchParentId creates a node with both parents pointing to the previous node.
+	 *
 	 * Bluprint-exposed version.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Save System", meta = (DisplayName = "Async Save Game"))
-	void AsyncSaveGameDynamic(
-		FMAsyncSaveGameDelegateDynamic Delegate, bool bInvisible = false, FGuid BranchParentId = FGuid());
+	void AsyncSaveGameDynamic(FMAsyncSaveGameDelegateDynamic Delegate, bool bInvisible = false);
 
 	/**
-	 * Loads a node from the save graph. If bLoadRaw is false, creates an invisible node in the save graph
-	 * after loading, which is used to combine separate timelines. Returns a pointer to the invisible node.
-	 *
-	 * That node's SequenceParent points to the last SaveNode, and its BranchParent points to the provided node to load.
+	 * Loads a node from the save graph.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Save System")
-	UMSaveNode* LoadGame(FGuid SaveId, bool bLoadRaw = false);
+	UMSaveNode* LoadGame(FGuid SaveId);
 
 	/**
-	 * Asynchronously loads a node from the save graph and calls a delegate, if bLoadRaw is false,
-	 * creates an invisible node in the save graph after loading, which is used to combine separate timelines.
-	 *
-	 * That node's SequenceParent points to the last SaveNode, and its BranchParent points to the provided node to load.
+	 * Asynchronously loads a node from the save graph and calls a delegate.
 	 */
-	void AsyncLoadGame(FMAsyncLoadGameDelegate Delegate, FGuid SaveId, bool bLoadRaw = false);
+	void AsyncLoadGame(FMAsyncLoadGameDelegate Delegate, FGuid SaveId);
 
 	/**
-	 * Asynchronously loads a node from the save graph and calls a delegate, if bLoadRaw is false,
-	 * creates an invisible node in the save graph after loading, which is used to combine separate timelines.
-	 *
-	 * That node's SequenceParent points to the last SaveNode, and its BranchParent points to the provided node to load.
+	 * Asynchronously loads a node from the save graph and calls a delegate.
 	 *
 	 * Bluprint-exposed version.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Save System", meta = (DisplayName = "Async Load Game"))
-	void AsyncLoadGameDynamic(FMAsyncLoadGameDelegateDynamic Delegate, FGuid SaveId, bool bLoadRaw = false);
+	void AsyncLoadGameDynamic(FMAsyncLoadGameDelegateDynamic Delegate, FGuid SaveId);
+
+	/**
+	 * Creates a child save node with the specified parents. The default SequenceParentId is the current save node,
+	 * which causes a linear timeline along the sequence parents according to the IRL player.
+	 *
+	 * Functionally, this will (1) call ISaveable::Load(bRecall = true), then (2) call ISaveable::Save(bRecall = true)
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Save System")
+	UMSaveNode* RecallGame(FGuid BranchParentId, FGuid SequenceParentId = FGuid(), bool bInvisible = true);
+
+	/**
+	 * Asynchronously creates a child save node with the specified parents and calls a delegate. The default
+	 * SequenceParentId is the current save node, which causes a linear timeline along the sequence parents according to
+	 * the IRL player.
+	 *
+	 * Functionally, this will:
+	 *   1. Call ISaveable::Load(bRecall = true) with the BranchParentId,
+	 *   2. Call ISaveable::Save(bRecall = true)
+	 */
+	void AsyncRecallGame(
+		FMAsyncRecallGameDelegate Delegate,
+		FGuid					  BranchParentId,
+		FGuid					  SequenceParentId = FGuid(),
+		bool					  bInvisible = true);
+
+	/**
+	 * Asynchronously creates a child save node with the specified parents and calls a delegate. The default
+	 * SequenceParentId is the current save node, which causes a linear timeline along the sequence parents according to
+	 * the IRL player.
+	 *
+	 * Bluprint-exposed version.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Save System", meta = (DisplayName = "Async Recall Game"))
+	void AsyncRecallGameDynamic(
+		FMAsyncRecallGameDelegateDynamic Delegate,
+		FGuid							 BranchParentId,
+		FGuid							 SequenceParentId = FGuid(),
+		bool							 bInvisible = true);
 
 	/**
 	 * Creates a new save slot with an empty save graph. Returns the new UMSaveGame.
@@ -269,6 +321,9 @@ public:
 	/** Returns the currently active save slot */
 	UMSaveGame* GetActiveSaveGame() const { return ActiveSaveGame; }
 
+	/** Returns the save history for the currently active save slot */
+	UMSaveHistory* GetSaveHistory() const { return SaveHistory; }
+
 	/** Initializes the subsystem, add console commands to manipulate the save manager */
 	void Initialize(FSubsystemCollectionBase& Collection) override;
 
@@ -284,57 +339,24 @@ private:
 	UPROPERTY()
 	TObjectPtr<UMSaveGame> ActiveSaveGame;
 
-	/** An internal listener for OnSaveSlotUpdated */
-	void OnSaveSlotUpdated_Internal(UMSaveGame* SaveGame);
+	/** Provides query capabilities for the ActiveSaveGame. */
+	UPROPERTY()
+	TObjectPtr<UMSaveHistory> SaveHistory;
 
 	/** Finds all saveables in the world */
 	void FindSaveables(TArray<UObject*>& OutSaveables) const;
 
 	/** Creates a new save node and adds it to the save graph */
-	UMSaveNode* CreateSaveNode(bool bInvisible = false, FGuid BranchParentId = FGuid());
+	UMSaveNode* CreateSaveNode(FGuid BranchParentId, FGuid SequenceParentId, bool bRecall, bool bInvisible);
 
 	/** Clones a save node. Does not add it to the save graph. */
 	UMSaveNode* CloneSaveNode(const UMSaveNode* OriginalSaveNode);
 
 	/** Deserializes a save node and triggers the game to load it */
-	bool LoadSaveNode(UMSaveNode* SaveNode);
+	bool LoadSaveNode(UMSaveNode* SaveNode, bool bRecall);
 
 	/** Deletes the save nodes within a slot. Does not delete the slot itself. */
 	void DeleteSaveGraph(UMSaveGame* SaveGame);
-
-	/** Handles debug key inputs for quick save and load */
-	void HandleKeyDown(const FKeyEvent& EventArgs);
-
-	FDelegateHandle KeyDownDelegateHandle;
-
-	/** Refreshes the auto complete for the console commands */
-	void RefreshConsoleCommands();
-
-	/** Registers auto completion for the console commands */
-	void HandleRegisterConsoleAutoCompleteEntries(TArray<FAutoCompleteCommand>& OutCommands);
-
-	FDelegateHandle AutoCompleteDelegateHandle;
-
-	/** Calls SaveGame() */
-	void ConsoleSaveGame();
-
-	/** Calls LoadGame(saveId, false) and attempts to load the node with the provided save id */
-	void ConsoleLoadGame(const TArray<FString>& Args);
-
-	/** Calls LoadGame(saveId, true) and attempts to load the node with the provided save id */
-	void ConsoleLoadGameRaw(const TArray<FString>& Args);
-
-	/** Calls CreateSaveSlot(slotName, userIndex) */
-	void ConsoleCreateSaveSlot(const TArray<FString>& Args);
-
-	/** Calls LoadSaveSlot(slotName, userIndex) */
-	void ConsoleLoadSaveSlot(const TArray<FString>& Args);
-
-	/** Calls DeleteSaveSlot(slotName, userIndex) */
-	void ConsoleDeleteSaveSlot(const TArray<FString>& Args);
-
-	/** Calls CloneSaveSlot(originalSlotName, originalUserIndex, newSlotName, newUserIndex) */
-	void ConsoleCloneSaveSlot(const TArray<FString>& Args);
 };
 
 #pragma endregion

@@ -9,7 +9,7 @@
 
 /** Container for save data within a single save node */
 UCLASS(BlueprintType)
-class MEMENTOSAVESYSTEM_API UMSaveNode : public USaveGame
+class MEMENTOSAVESYSTEMRUNTIME_API UMSaveNode : public USaveGame
 {
 	GENERATED_BODY()
 

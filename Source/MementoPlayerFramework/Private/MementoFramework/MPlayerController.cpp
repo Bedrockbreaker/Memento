@@ -27,12 +27,12 @@ void AMPlayerController::SetupInputComponent()
 	}
 }
 
-void AMPlayerController::Save(FArchive& OutData)
+void AMPlayerController::Save(FArchive& OutData, bool bRecall, UMSaveHistory* SaveHistory)
 {
 	OutData << ControlRotation;
 }
 
-void AMPlayerController::Load(FArchive& InData)
+void AMPlayerController::Load(FArchive& InData, bool bRecall, UMSaveHistory* SaveHistory)
 {
 	InData << ControlRotation;
 }

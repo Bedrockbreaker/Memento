@@ -8,7 +8,7 @@
 
 /** Provides a stable guid for an actor, across both editor and runtime */
 UCLASS(meta = (BlueprintSpawnableComponent))
-class MEMENTOSAVESYSTEM_API UMGuidComponent : public UActorComponent
+class MEMENTOSAVESYSTEMRUNTIME_API UMGuidComponent : public UActorComponent
 {
 	GENERATED_BODY()
 

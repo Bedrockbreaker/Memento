@@ -12,14 +12,6 @@
 		{
 			"Name": "MementoPlayerFramework",
 			"Type": "Runtime"
-		},
-		{
-			"Name": "MementoSaveSystem",
-			"Type": "Runtime"
-		},
-		{
-			"Name": "MementoSaveSystemEditor",
-			"Type": "Editor"
 		}
 	],
 	"Plugins": []

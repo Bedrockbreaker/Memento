@@ -6,7 +6,7 @@
 
 /** Simple container for binary save data */
 USTRUCT(BlueprintType)
-struct FMSaveData
+struct MEMENTOSAVESYSTEMRUNTIME_API FMSaveData
 {
 	GENERATED_BODY()
 
