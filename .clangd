@@ -3,6 +3,7 @@ If:
   PathMatch:
     - .vscode/unreal-clangd/completionHelper.cpp
     - Source/.*\.(cpp|h)
+    - Plugins/.*/Source/.*\.(cpp|h)
 CompileFlags:
   CompilationDatabase: .vscode/unreal-clangd
   Compiler: c:/Program Files/LLVM/bin/clang-cl.exe
